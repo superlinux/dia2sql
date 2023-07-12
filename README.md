@@ -1,5 +1,5 @@
 # dia2sql
-Extract and generate the SQL code from a dia diagram that used the shapes database  menu item. The program is a console application. no GUI is involved.
+Extract and generate the SQL code from a dia diagram that used the shapes database  menu item. The program is a Debian Linux console application. no GUI is involved.
 
 To Build install the following packages.
 
