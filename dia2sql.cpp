@@ -2,6 +2,8 @@
 #include<pugiconfig.hpp>
 #include <iostream>
 #include <fstream>
+#include <gzstream.h>
+
 //#include<sstream>
 using namespace std;
 using namespace pugi;
@@ -9,17 +11,17 @@ using namespace pugi;
 int table_counter=0;
 string sql_create_table_predicate="",table_field_name=" ",table_field_type=" ",table_field_comment=" ",table_field_is_primary_key=" ",table_field_is_unique=" ",table_field_is_nullable=" ",table_field_default_value=" ", primary_key_predicate="", table_field_definitions_list_predicate="",unique_predicate="",default_value_predicate="";
 string table_name, all_sql_statements="";
-string input_file_path,output_file_path,argv_2;
+string input_file_path,output_file_path,argv_2,dia_database_diagram_contents_as_xml="";
 std::string my_utf8(const char * str) { return str; }
 std::string my_utf8(const wchar_t * str) { return as_utf8(str); }
 bool verbose=false;
-
+igzstream dia_database_diagram_file;
 
 int main(int argc, char* argv[]) {
   //cout <<argc<<endl<<argv[0]<<endl;
  switch (argc) { 
   case 1: 
-    cout<<"Usage: dia2database  INPUT_FILE.dia  [ OUTPUT.SQL] [ --verbose ]."<< endl;
+    cout<<"Usage: dia2sql  INPUT_FILE.dia  [ OUTPUT.SQL] [ --verbose ]."<< endl;
     cout<<"This command generates the SQL code for table creation from an INPUT_FILE.dia dia diagram file and save them in file OUTPUT.SQL"<<endl;
     cout<<"You have to use the shapes of [Database] in the menu of shapes "<<endl;
     cout<<"If OUTPUT.SQL is not given, then the SQL code will be displayed on the terminal to stdout."<<endl;
@@ -48,19 +50,32 @@ int main(int argc, char* argv[]) {
   break;  
 }
 
-
+dia_database_diagram_file.open(input_file_path.c_str());
+if (! dia_database_diagram_file) {
+ cerr<<"dia diagram file"<<input_file_path<<"does not exist and not found."<<endl<<endl;
+ return -1;
+  
+}
+string line;
+if(verbose) cout << "Printing the dia diagram "<< input_file_path<< " as XML.." <<endl<<endl;
+while(getline(dia_database_diagram_file, line)) {
+   if(verbose)  cout << line << endl;
+    dia_database_diagram_contents_as_xml+=line;
+}
+dia_database_diagram_file.close();
+if(verbose) cout << endl<<endl<<"DONE Printing the dia diagram "<< input_file_path<< " as XML.." <<endl<<endl<<"Printing dia2sql analysis."<<endl<<endl;
 
    pugi::xml_document doc;
    string table_attribute_name;
-    pugi::xml_parse_result result = doc.load_file(input_file_path.c_str());
-    if (!result) {
-      cerr<<"input file not found or does not exists or it's not a dia diagram file"<<endl;
-        return -1;
-    }
- 
+    pugi::xml_parse_result result = doc.load_string(dia_database_diagram_contents_as_xml.c_str());
+//     if (!result) {
+//       cerr<<"input file not found or does not exists or it's not a dia diagram file"<<endl;
+//         return -1;
+//     }
+//  
       for (pugi::xml_node xml_node_all_diagram_objects = doc.first_element_by_path("/dia:diagram/dia:layer/dia:object"); xml_node_all_diagram_objects; xml_node_all_diagram_objects = xml_node_all_diagram_objects.next_sibling()){
 
-     if(verbose)   std::cout <<endl<<"Table #"<<++table_counter<<endl<< " dia_object name: " << xml_node_all_diagram_objects.name() <<" type="<<xml_node_all_diagram_objects.attribute("type").value()<<endl;
+     if(verbose)   std::cout <<endl<<"Diagram shape #"<<++table_counter<<endl<< " dia_object name: " << xml_node_all_diagram_objects.name() <<" type="<<xml_node_all_diagram_objects.attribute("type").value()<<endl;
         if (my_utf8(xml_node_all_diagram_objects.attribute("type").value()) == "Database - Table") {
             for (xml_node xml_node_list_of_tables = xml_node_all_diagram_objects.first_element_by_path("dia:attribute"); xml_node_list_of_tables; xml_node_list_of_tables = xml_node_list_of_tables.next_sibling()){
                if ( my_utf8( xml_node_list_of_tables.attribute("name").value()) =="name") {
