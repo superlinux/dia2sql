@@ -1,22 +1,31 @@
 #include <pugixml.hpp>
-#include<pugiconfig.hpp>
+#include <pugiconfig.hpp>
 #include <iostream>
 #include <fstream>
 #include <gzstream.h>
-
+#include <map>
+#include <vector>
 //#include<sstream>
 using namespace std;
 using namespace pugi;
-
+struct connection {
+  string connection_id_from_dia_object_id="";
+  string handle_zero_connection_object_id="";
+  string handle_one_connection_object_id="";
+} single_connection;
+vector<connection> connections_list;
 int table_counter=0;
 string sql_create_table_predicate="",table_field_name=" ",table_field_type=" ",table_field_comment=" ",table_field_is_primary_key=" ",table_field_is_unique=" ",table_field_is_nullable=" ",table_field_default_value=" ", primary_key_predicate="", table_field_definitions_list_predicate="",unique_predicate="",default_value_predicate="";
 string table_name, all_sql_statements="";
-string input_file_path,output_file_path,argv_2,dia_database_diagram_contents_as_xml="";
+string input_file_path,output_file_path,argv_2,dia_database_diagram_contents_as_xml="",table_dia_object_id="";
 std::string my_utf8(const char * str) { return str; }
 std::string my_utf8(const wchar_t * str) { return as_utf8(str); }
 bool verbose=false;
 igzstream dia_database_diagram_file;
-
+std::map<std::string, string> map_connection_handle_zero; //map dia:object id vs where it's connected to, for handle=zero
+std::map<std::string, string> map_connection_handle_one; //map dia:object id vs where it's connected to,  for handle=one
+std::map<std::string, string> map_dia_object_id_to_table_name;
+string connection_id_from_dia_object_id="";
 int main(int argc, char* argv[]) {
   //cout <<argc<<endl<<argv[0]<<endl;
  switch (argc) { 
@@ -76,13 +85,19 @@ if(verbose) cout << endl<<endl<<"DONE Printing the dia diagram "<< input_file_pa
       for (pugi::xml_node xml_node_all_diagram_objects = doc.first_element_by_path("/dia:diagram/dia:layer/dia:object"); xml_node_all_diagram_objects; xml_node_all_diagram_objects = xml_node_all_diagram_objects.next_sibling()){
 
      if(verbose)   std::cout <<endl<<"Diagram shape #"<<++table_counter<<endl<< " dia_object name: " << xml_node_all_diagram_objects.name() <<" type="<<xml_node_all_diagram_objects.attribute("type").value()<<endl;
+     
+     
+     
+     
         if (my_utf8(xml_node_all_diagram_objects.attribute("type").value()) == "Database - Table") {
+          table_dia_object_id=my_utf8(xml_node_all_diagram_objects.attribute("id").value());
             for (xml_node xml_node_list_of_tables = xml_node_all_diagram_objects.first_element_by_path("dia:attribute"); xml_node_list_of_tables; xml_node_list_of_tables = xml_node_list_of_tables.next_sibling()){
                if ( my_utf8( xml_node_list_of_tables.attribute("name").value()) =="name") {
                
                    
                    table_name=my_utf8(xml_node_list_of_tables.child_value("dia:string"));
                    table_name=table_name.substr(1,table_name.length()-2);
+                   map_dia_object_id_to_table_name[table_dia_object_id]=table_name;
                   sql_create_table_predicate="create table if not exists "+table_name+" (";
                if(verbose)   cout<<"table name="<<table_name<<endl;
                    
@@ -174,8 +189,30 @@ if(verbose) cout << endl<<endl<<"DONE Printing the dia diagram "<< input_file_pa
         table_field_definitions_list_predicate="";
       
     }
-   
+   if (my_utf8(xml_node_all_diagram_objects.attribute("type").value()) =="Database - Reference") {
+    
+    for (xml_node xml_node_list_of_fk = xml_node_all_diagram_objects.child("dia:attribute"); xml_node_list_of_fk; xml_node_list_of_fk = xml_node_list_of_fk.next_sibling()){
+    if (my_utf8(xml_node_list_of_fk.attribute("name").value())=="start_point_desc")  cout<<"start_point_desc: "<<xml_node_list_of_fk.child("dia:string").child_value()<<endl;
+    if (my_utf8(xml_node_list_of_fk.attribute("name").value())=="end_point_desc") cout<<"end_point_desc: "<<xml_node_list_of_fk.child("dia:string").child_value()<<endl;
+      
+    }
+
+     single_connection.connection_id_from_dia_object_id=my_utf8(xml_node_all_diagram_objects.attribute("id").value());
+     for (xml_node xml_node_list_of_references = xml_node_all_diagram_objects.first_element_by_path("dia:connections/dia:connection"); xml_node_list_of_references; xml_node_list_of_references = xml_node_list_of_references.next_sibling()){
+       
+      if (my_utf8(xml_node_list_of_references.attribute("handle").value())=="0") single_connection.handle_zero_connection_object_id=my_utf8(xml_node_list_of_references.attribute("to").value());
+      if (my_utf8(xml_node_list_of_references.attribute("handle").value())=="1") single_connection.handle_one_connection_object_id=my_utf8(xml_node_list_of_references.attribute("to").value());
+       
+    }
+    connections_list.push_back(single_connection);
+   }
       }
+      
+      for (auto it = connections_list.begin();it!=connections_list.end();it++){
+           cout<<"connection object id="<< it->connection_id_from_dia_object_id << " handle_0="<<map_dia_object_id_to_table_name[it->handle_zero_connection_object_id]<<" handle_one="<<map_dia_object_id_to_table_name[ it->handle_one_connection_object_id]<<endl;
+           
+      }
+      
       if (output_file_path.length()>0) {
         ofstream outfile (output_file_path);
         if (outfile.is_open()){
